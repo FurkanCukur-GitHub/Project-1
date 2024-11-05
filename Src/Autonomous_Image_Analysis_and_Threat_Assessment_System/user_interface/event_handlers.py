@@ -1,3 +1,4 @@
+# user_interface/event_handlers.py
 import threading
 import cv2
 from tkinter import filedialog, messagebox

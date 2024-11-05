@@ -1,3 +1,4 @@
+# training/train.py
 import torch
 from ultralytics import YOLO
 import random
@@ -29,9 +30,11 @@ def main():
 
     model = YOLO("yolov8m.pt")
 
-    # Set up data and output directories
-    data = "../datasets/vehicles/data.yaml"  # 'data.yaml' file will be loaded from here
-    base_output_dir = '../datasets/vehicles/runs/detect'  # Outputs will be saved here
+    # data = "../datasets/vehicles/data.yaml"  # 'data.yaml' file will be loaded from here
+    # base_output_dir = '../datasets/vehicles/runs/detect'  # Outputs will be saved here
+
+    data = "../datasets/human/data.yaml"  # 'data.yaml' file will be loaded from here
+    base_output_dir = '../datasets/human/runs/detect'  # Outputs will be saved here
 
     # Determine the next run directory (e.g., train1, train2, ...)
     run_name = get_next_run_dir(base_output_dir, prefix='train')
@@ -41,8 +44,8 @@ def main():
     training_params = {
         'data': data,                  # Data configuration file
         'epochs': 100,                 # Number of training epochs
-        'batch': 16,                   # Batch size (optimized for RTX 2060 Super)
-        'imgsz': 640,                  # Image size
+        'batch': 24,                   # Batch size (optimized for RTX 2060 Super)
+        'imgsz': 416,                  # Image size
         'lr0': 0.01,                   # Initial learning rate
         'momentum': 0.937,             # Momentum
         'weight_decay': 0.0005,        # Weight decay
@@ -54,13 +57,13 @@ def main():
         'dfl': 1.5,                    # DFL loss weight
         'label_smoothing': 0.0,        # Label smoothing
         'cache': False,                # Data caching
-        'workers': 8,                  # Number of DataLoader workers
+        'workers': 16,                 # Number of DataLoader workers
         'save_period': -1,             # Model save period (-1: do not save periodically)
         'save': True,                  # Save the model
         'save_txt': False,             # Save results as txt
         'save_conf': False,            # Save prediction confidence scores
         'verbose': True,               # Verbose output
-        'patience': 20,                # Patience for early stopping (number of epochs)
+        'patience': 10,                # Patience for early stopping (number of epochs)
         'project': base_output_dir,    # Output directory
         'name': run_name,              # Run name (subdirectory)
         'exist_ok': False,             # Do not overwrite existing directories

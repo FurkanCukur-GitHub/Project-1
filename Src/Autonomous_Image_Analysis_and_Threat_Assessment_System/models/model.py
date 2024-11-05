@@ -1,10 +1,11 @@
+# models/model.py
 import torch
 from ultralytics import YOLO
 from tkinter import messagebox
 import sys
 
-# Define the model path here
-MODEL_PATH = '../datasets/vehicles/runs/detect/train1/weights/best.pt'
+# MODEL_PATH = '../datasets/vehicles/runs/detect/train1/weights/best.pt'
+MODEL_PATH = '../datasets/human/runs/detect/train1/weights/best.pt'
 
 class YOLOModel:
     def __init__(self):

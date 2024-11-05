@@ -1,10 +1,10 @@
+# user_interface/ui.py
 import tkinter as tk
-
 from user_interface.event_handlers import EventHandlers
 from process_operations.video_processor import VideoProcessor
 from object_detection.object_detector import ObjectDetector
 
-class application:
+class Application:
     def __init__(self, root):
         self.root = root
         self.root.title("System User Interface")
@@ -83,14 +83,14 @@ class application:
         self.button_frame = tk.Frame(self.content_frame, bg="#34495E", padx=10, pady=10)
         self.button_frame.grid(row=0, column=1, padx=10, pady=10, sticky="n")
 
-        # Initialize event handlers before creating buttons
-        self.event_handlers = EventHandlers(self)
+        # Initialize ObjectDetector
+        self.object_detector = ObjectDetector()
 
         # Initialize VideoProcessor
         self.video_processor = VideoProcessor(self)
 
-        # Initialize ObjectDetector
-        self.object_detector = ObjectDetector()
+        # Initialize event handlers before creating buttons
+        self.event_handlers = EventHandlers(self)
 
         # Create action buttons after initializing event_handlers
         self.create_action_buttons()
@@ -149,9 +149,9 @@ class application:
         control_buttons = [
             ("Select Video", self.event_handlers.open_video, "#2980B9"),  # Blue
             ("Play", self.event_handlers.resume_video, "#27AE60"),        # Green
-            ("Pause", self.event_handlers.pause_video, "#F1C40F"),       # Yellow
-            ("Rewind", self.event_handlers.rewind_video, "#E67E22"),     # Orange
-            ("Exit", self.event_handlers.quit_app, "#C0392B")            # Red
+            ("Pause", self.event_handlers.pause_video, "#F1C40F"),        # Yellow
+            ("Rewind", self.event_handlers.rewind_video, "#E67E22"),      # Orange
+            ("Exit", self.event_handlers.quit_app, "#C0392B")             # Red
         ]
 
         for idx, (text, command, color) in enumerate(control_buttons):
