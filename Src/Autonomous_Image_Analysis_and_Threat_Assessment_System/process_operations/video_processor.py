@@ -1,73 +1,91 @@
 # process_operations/video_processor.py
-import time
 import cv2
 from PIL import Image, ImageTk
+from object_tracking.object_tracker import ObjectTracker
 
 class VideoProcessor:
     def __init__(self, app):
         self.app = app
+        self.object_detector = app.object_detector
+        self.object_tracker = ObjectTracker()
+        self.current_tracked_objects = []
+        self.frame = None  # Store current frame
 
     def play_video(self):
-        while self.app.playing and self.app.cap.isOpened():
-            start_time = time.time()
-
-            if self.app.direction == 1:
+        if self.app.cap is not None:
+            if self.app.playing:
                 ret, frame = self.app.cap.read()
                 if not ret:
-                    # Videonun sonuna ulaşıldı, başa dön
-                    self.app.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    ret, frame = self.app.cap.read()
-                    if not ret:
-                        break
-            elif self.app.direction == -1:
-                # Ters oynatma: iki çerçeve geri git ve bir çerçeve oku
-                current_frame = int(self.app.cap.get(cv2.CAP_PROP_POS_FRAMES))
-                new_frame = current_frame - 2  # İki çerçeve geri git
-                if new_frame < 0:
-                    # Videonun başına ulaşıldı, sona dön
-                    frame_count = int(self.app.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    self.app.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_count - 1)
-                else:
-                    self.app.cap.set(cv2.CAP_PROP_POS_FRAMES, new_frame)
-                ret, frame = self.app.cap.read()
-                if not ret:
-                    self.app.event_handlers.stop_video()
-                    break
+                    print("Reached the end of the video.")
+                    self.app.playing = False
+                    self.app.cap.release()
+                    return
 
-            self.app.current_frame += 1
-            if self.app.current_frame % self.app.frame_skip != 0:
-                continue  # Çerçeveyi atla eğer çerçeve atlama etkinse
+                # Resize frame to fit display
+                frame = cv2.resize(frame, (self.app.display_width, self.app.display_height))
 
-            # Çerçeveyi video görüntüleme alanına sığacak şekilde yeniden boyutlandır
-            frame = cv2.resize(frame, (self.app.display_width, self.app.display_height))
+                # Detect objects
+                detections = self.object_detector.detect_objects(frame)
 
-            # Çerçeveyi RGB formatına dönüştür
-            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                # Update tracker
+                tracked_objects = self.object_tracker.update_tracks(detections, frame)
+                self.current_tracked_objects = tracked_objects  # Store for access in click event
 
-            # Nesne algılama işlemi
-            try:
-                results = self.app.object_detector.detect_objects(frame_rgb)
-                # Anotasyonları ekle
-                annotated_frame = self.app.object_detector.annotate_frame(frame_rgb, results)
-            except Exception as e:
-                print(f"Model çıkarımı sırasında hata: {e}")
-                self.app.event_handlers.stop_video()
-                break
+                # Store the frame
+                self.frame = frame
+            else:
+                # If paused, use the last frame
+                frame = self.frame
+                tracked_objects = self.current_tracked_objects
 
-            # PIL Image'e dönüştür
-            img = Image.fromarray(annotated_frame)
-            imgtk = ImageTk.PhotoImage(image=img)
+            # Draw bounding boxes and IDs
+            frame = self.draw_boxes(frame, tracked_objects)
 
-            # Ana iş parçacığında video etiketini güncelle
-            self.app.video_label.after(0, self.update_video_label, imgtk)
+            # Convert frame to ImageTk format
+            image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image = Image.fromarray(image)
+            imgtk = ImageTk.PhotoImage(image=image)
 
-            # Geçen süreyi hesapla ve uyuma süresini belirle
-            elapsed_time = time.time() - start_time
-            time.sleep(max(0, (1 / self.app.fps) - elapsed_time))
+            # Update video label
+            self.app.video_label.imgtk = imgtk
+            self.app.video_label.configure(image=imgtk)
 
-        # Döngü sona erdiğinde thread çalışma bayrağını sıfırla
-        self.app.video_thread_running = False
+            # Schedule next frame
+            delay = int(1000 / self.app.fps)
+            self.app.root.after(delay, self.play_video)
+        else:
+            # Video is not loaded
+            pass
 
-    def update_video_label(self, imgtk):
-        self.app.video_label.imgtk = imgtk
-        self.app.video_label.configure(image=imgtk)
+    def draw_boxes(self, frame, tracked_objects):
+        for obj in tracked_objects:
+            x1, y1, x2, y2 = obj['bbox']
+            track_id = obj['track_id']
+            cls = obj['cls']  # Sınıf adı olarak doğrudan string kullanıyoruz
+
+            x1 = int(x1)
+            y1 = int(y1)
+            x2 = int(x2)
+            y2 = int(y2)
+
+            # Determine the color based on object status
+            status = self.app.object_statuses.get(track_id, None)
+            if status == 'selected':
+                color = (0, 165, 255)  # Orange
+            elif status == 'friend':
+                color = (0, 255, 0)    # Green
+            elif status == 'adversary':
+                color = (0, 0, 255)    # Red
+            else:
+                color = (175, 175, 0)  # Default color (yellowish)
+
+            # Draw rectangle
+            cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+            
+            label = f"{cls}"
+            
+            # Put label above the bounding box
+            cv2.putText(frame, label, (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+        return frame

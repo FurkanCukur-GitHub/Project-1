@@ -1,32 +1,33 @@
 # object_detection/object_detector.py
 from models.model import YOLOModel
-import cv2
 
 class ObjectDetector:
     def __init__(self):
-        self.model_loader = YOLOModel()
-        self.model = self.model_loader.model
+        self.yolo_model = YOLOModel()
+        self.model = self.yolo_model.model  # The YOLO model instance
+        self.names = ['Human', 'Car', 'Motorcycle']
 
-    def detect_objects(self, image):
-        results = self.model.predict(source=image)
-        return results
+    def detect_objects(self, frame):
+        # Convert frame to RGB
+        frame_rgb = frame[:, :, ::-1]
 
-    def annotate_frame(self, frame, results):
-        # Algılamaları çerçeve üzerine çiz
+        # Run the model on the frame
+        results = self.model(frame_rgb)
+
+        detections = []
         for result in results:
-            for box in result.boxes:
-                # Sınır kutusu koordinatlarını al
-                xyxy = box.xyxy[0].cpu().numpy()  # [x1, y1, x2, y2]
-                x1, y1, x2, y2 = map(int, xyxy)
-                
-                # Sınıf kimliğini al
-                class_id = int(box.cls[0].cpu().numpy())
-                class_name = self.model.names[class_id]  # Modelinizin sınıf isimlerini nasıl tuttuğuna göre ayarlayın
-                
-                # Sınır kutusunu çiz
-                cv2.rectangle(frame, (x1, y1), (x2, y2), color=(0, 255, 0), thickness=3)
+            boxes = result.boxes  # This is a Boxes object
 
-                # Sınıf adı metnini ekle
-                cv2.putText(frame, class_name, (x1, y1 - 10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (36,255,12), 2)
-        return frame
+            if boxes is not None:
+                # Get the bounding boxes, confidence scores, and class IDs
+                xyxy = boxes.xyxy.cpu().numpy()  # Bounding boxes in [x1, y1, x2, y2] format
+                conf = boxes.conf.cpu().numpy()  # Confidence scores
+                cls = boxes.cls.cpu().numpy()    # Class IDs
+
+                for i in range(len(boxes)):
+                    x1, y1, x2, y2 = xyxy[i]
+                    confidence = conf[i]
+                    class_id = int(cls[i])
+                    class_name = self.names[class_id] if class_id < len(self.names) else "Unknown"
+                    detections.append([x1, y1, x2, y2, confidence, class_name])
+        return detections

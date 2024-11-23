@@ -28,13 +28,10 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
 
-    model = YOLO("yolov8m.pt")
+    model = YOLO("yolov8s.pt")
 
-    # data = "../datasets/vehicles/data.yaml"  # 'data.yaml' file will be loaded from here
-    # base_output_dir = '../datasets/vehicles/runs/detect'  # Outputs will be saved here
-
-    data = "../datasets/human/data.yaml"  # 'data.yaml' file will be loaded from here
-    base_output_dir = '../datasets/human/runs/detect'  # Outputs will be saved here
+    data = "../datasets/merged_datasets/data.yaml"  # 'data.yaml' file will be loaded from here
+    base_output_dir = '../datasets/merged_datasets/runs/detect'  # Outputs will be saved here
 
     # Determine the next run directory (e.g., train1, train2, ...)
     run_name = get_next_run_dir(base_output_dir, prefix='train')
@@ -43,7 +40,7 @@ def main():
     # Training hyperparameters
     training_params = {
         'data': data,                  # Data configuration file
-        'epochs': 100,                 # Number of training epochs
+        'epochs': 50,                  # Number of training epochs
         'batch': 24,                   # Batch size (optimized for RTX 2060 Super)
         'imgsz': 416,                  # Image size
         'lr0': 0.01,                   # Initial learning rate
@@ -63,7 +60,7 @@ def main():
         'save_txt': False,             # Save results as txt
         'save_conf': False,            # Save prediction confidence scores
         'verbose': True,               # Verbose output
-        'patience': 10,                # Patience for early stopping (number of epochs)
+        'patience': 5,                 # Patience for early stopping (number of epochs)
         'project': base_output_dir,    # Output directory
         'name': run_name,              # Run name (subdirectory)
         'exist_ok': False,             # Do not overwrite existing directories
