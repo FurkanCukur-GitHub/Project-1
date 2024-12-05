@@ -5,17 +5,19 @@ class ObjectDetector:
     def __init__(self):
         self.yolo_model = YOLOModel()
         self.model = self.yolo_model.model  # The YOLO model instance
-        self.names = ['Human', 'Car', 'Motorcycle']
+        self.names = self.model.names  # Get class names from the model
 
-    def detect_objects(self, frame):
-        # Convert frame to RGB
-        frame_rgb = frame[:, :, ::-1]
+    def detect_objects(self, frames):
+        # Convert frames to RGB
+        frames_rgb = [frame[:, :, ::-1] for frame in frames]
 
-        # Run the model on the frame
-        results = self.model(frame_rgb)
+        # Run the model on the frames with verbose=False for performance optimization
+        results = self.model(frames_rgb, verbose=False)
 
-        detections = []
+        # Continue with existing detection logic
+        batch_detections = []
         for result in results:
+            frame_detections = []
             boxes = result.boxes  # This is a Boxes object
 
             if boxes is not None:
@@ -29,5 +31,6 @@ class ObjectDetector:
                     confidence = conf[i]
                     class_id = int(cls[i])
                     class_name = self.names[class_id] if class_id < len(self.names) else "Unknown"
-                    detections.append([x1, y1, x2, y2, confidence, class_name])
-        return detections
+                    frame_detections.append([x1, y1, x2, y2, confidence, class_name, class_id])
+            batch_detections.append(frame_detections)
+        return batch_detections

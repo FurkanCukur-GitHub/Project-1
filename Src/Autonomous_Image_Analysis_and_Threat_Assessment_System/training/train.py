@@ -28,10 +28,10 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f"Using device: {device}")
 
-    model = YOLO("yolov8s.pt")
+    model = YOLO("yolov8m.pt")
 
-    data = "../datasets/merged_datasets/data.yaml"  # 'data.yaml' file will be loaded from here
-    base_output_dir = '../datasets/merged_datasets/runs/detect'  # Outputs will be saved here
+    data = "../datasets/merged_datasets2/data.yaml"  # 'data.yaml' file will be loaded from here
+    base_output_dir = '../datasets/merged_datasets2/runs/detect'  # Outputs will be saved here
 
     # Determine the next run directory (e.g., train1, train2, ...)
     run_name = get_next_run_dir(base_output_dir, prefix='train')
@@ -60,14 +60,14 @@ def main():
         'save_txt': False,             # Save results as txt
         'save_conf': False,            # Save prediction confidence scores
         'verbose': True,               # Verbose output
-        'patience': 5,                 # Patience for early stopping (number of epochs)
+        'patience': 10,                # Patience for early stopping (number of epochs)
         'project': base_output_dir,    # Output directory
         'name': run_name,              # Run name (subdirectory)
         'exist_ok': False,             # Do not overwrite existing directories
     }
 
     # Pass training parameters to the model.train() function
-    results = model.train(**training_params)
+    # results = model.train(**training_params)
 
     # You can use model.eval() to evaluate the training results
     # Evaluation process can be added here
