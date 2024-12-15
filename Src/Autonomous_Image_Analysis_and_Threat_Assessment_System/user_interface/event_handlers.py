@@ -13,16 +13,8 @@ class EventHandlers:
         self.app.selecting_object = True
         self.app.selecting_region = False
 
-        # Mevcut seçimi temizle
-        for track_id in list(self.app.object_statuses.keys()):
-            if self.app.object_statuses[track_id] == 'selected':
-                self.app.object_statuses[track_id] = None
-
-        self.app.selected_object_ids = []
-
-        if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button'):
-            self.app.mark_friend_button.setEnabled(False)
-            self.app.mark_adversary_button.setEnabled(False)
+        # Clear existing selections using the helper method
+        self.app.clear_selections()
 
         print("Select Object mode activated. Click on an object in the video.")
 
@@ -30,48 +22,43 @@ class EventHandlers:
         if self.app.playing:
             self.pause_video()
 
-        # Select Region modunu aktif tut
+        # Activate Select Region mode
         self.app.selecting_region = True
         self.app.selecting_object = False
 
-        # Mevcut seçimi temizle
-        for track_id in list(self.app.object_statuses.keys()):
-            if self.app.object_statuses[track_id] == 'selected':
-                self.app.object_statuses[track_id] = None
-
-        self.app.selected_object_ids = []
-
-        if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button'):
-            self.app.mark_friend_button.setEnabled(False)
-            self.app.mark_adversary_button.setEnabled(False)
+        # Clear existing selections using the helper method
+        self.app.clear_selections()
 
         print("Select Region mode activated. You can select multiple regions until you mark, play, or switch modes.")
-
-    def track_object(self):
-        print("Track Object button clicked.")
-
-    def untrack_object(self):
-        print("Untrack Object button clicked.")
 
     def mark_friend(self):
         if self.app.selected_object_ids:
             for track_id in self.app.selected_object_ids:
                 if track_id not in self.app.object_statuses:
-                    self.app.object_statuses[track_id] = {'status': None, 'selected': False}
+                    self.app.object_statuses[track_id] = {'status': None, 'selected': False, 'threat_level': 1.0}
                 self.app.object_statuses[track_id]['status'] = 'friend'
                 print(f"Object {track_id} marked as Friend.")
-            # Seçimleri temizle
+            # Clear selections
             self.app.selected_object_ids = []
             for track_id in self.app.object_statuses.keys():
                 self.app.object_statuses[track_id]['selected'] = False
+
+            self.app.object_table.clearSelection()
             self.app.selecting_region = False
             self.app.selecting_object = False
 
-            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button'):
+            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
                 self.app.mark_friend_button.setEnabled(False)
                 self.app.mark_adversary_button.setEnabled(False)
+                self.app.reset_status_button.setEnabled(False)
+                self.app.threat_assessment_button.setEnabled(False)
+            
+            # Perform threat assessment after status change
+            self.perform_threat_assessment()
+
+            # Refresh video display
             self.app.video_processor.refresh_video_display()
-            self.resume_video()
+            self.app.update_object_table()
         else:
             print("No objects selected to mark as Friend.")
 
@@ -79,30 +66,78 @@ class EventHandlers:
         if self.app.selected_object_ids:
             for track_id in self.app.selected_object_ids:
                 if track_id not in self.app.object_statuses:
-                    self.app.object_statuses[track_id] = {'status': None, 'selected': False}
+                    self.app.object_statuses[track_id] = {'status': None, 'selected': False, 'threat_level': 1.0}
                 self.app.object_statuses[track_id]['status'] = 'adversary'
                 print(f"Object {track_id} marked as Adversary.")
-            # Seçimleri temizle
+            # Clear selections
             self.app.selected_object_ids = []
             for track_id in self.app.object_statuses.keys():
                 self.app.object_statuses[track_id]['selected'] = False
+            
+            self.app.object_table.clearSelection()
             self.app.selecting_region = False
             self.app.selecting_object = False
 
-            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button'):
+            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
                 self.app.mark_friend_button.setEnabled(False)
                 self.app.mark_adversary_button.setEnabled(False)
+                self.app.reset_status_button.setEnabled(False)
+                self.app.threat_assessment_button.setEnabled(False)
+            
+            # Perform threat assessment after status change
+            self.perform_threat_assessment()
+
+            # Refresh video display
             self.app.video_processor.refresh_video_display()
-            self.resume_video()
+            self.app.update_object_table()
         else:
             print("No objects selected to mark as Adversary.")
 
+    def reset_status(self):
+        if self.app.selected_object_ids:
+            for track_id in self.app.selected_object_ids:
+                if track_id in self.app.object_statuses:
+                    self.app.object_statuses[track_id]['status'] = 'Unknown'
+                    self.app.object_statuses[track_id]['selected'] = False
+                    print(f"Object {track_id} status reset to Unknown.")
+            # Clear selections
+            self.app.selected_object_ids = []
+            for track_id in self.app.object_statuses.keys():
+                self.app.object_statuses[track_id]['selected'] = False
+            
+            self.app.object_table.clearSelection()
+            self.app.selecting_region = False
+            self.app.selecting_object = False
+
+            # Disable buttons
+            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
+                self.app.mark_friend_button.setEnabled(False)
+                self.app.mark_adversary_button.setEnabled(False)
+                self.app.reset_status_button.setEnabled(False)
+                self.app.threat_assessment_button.setEnabled(False)
+
+            # Perform threat assessment after status change
+            self.perform_threat_assessment()
+
+            # Refresh video display
+            self.app.video_processor.refresh_video_display()
+            self.app.update_object_table()
+        else:
+            print("No objects selected to reset.")
+
     def perform_threat_assessment(self):
-        print("Perform Threat Assessment button clicked.")
+        # Perform threat assessment using the ThreatAssessment class
+        self.app.threat_assessment.perform_threat_assessment(self.app)
+        # Update the object table to reflect updated threat levels
+        self.app.update_object_table()
+        # Refresh video display
+        self.app.video_processor.refresh_video_display()
 
     # --- Video Control Functions ---
     def open_video(self):
+        # Stop existing video and reset state before opening a new one
         self.stop_video()
+        self.app.reset_app_state()
 
         # File selection dialog
         options = QFileDialog.Options()
@@ -124,19 +159,11 @@ class EventHandlers:
                 return
 
             self.app.fps = self.app.cap.get(cv2.CAP_PROP_FPS)
-            frame_count = int(self.app.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            width = int(self.app.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-            height = int(self.app.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-            video_name = self.app.video_path.split('/')[-1]
-            self.app.video_info_label.setText(
-                f"Video: {video_name} | Resolution: {width}x{height} | Frame Count: {frame_count} | FPS: {self.app.fps:.2f}"
-            )
-
             self.app.display_width = self.app.video_frame_width
             self.app.display_height = self.app.video_frame_height
             self.app.current_frame = 0
 
+            # Start video processing for the selected video
             self.app.video_processor.stop_processing_frames()
             self.app.video_processor.start_processing_on_selection(
                 video_path=self.app.video_path,
@@ -188,7 +215,6 @@ class EventHandlers:
     def resume_video(self):
         if self.app.video_path:
             if not self.app.playing:
-                # 'selected' durumunu temizle, 'status' korunur
                 for track_id in self.app.object_statuses.keys():
                     self.app.object_statuses[track_id]['selected'] = False
 
@@ -202,6 +228,13 @@ class EventHandlers:
                 if hasattr(self.app, 'play_button') and hasattr(self.app, 'pause_button'):
                     self.app.play_button.setEnabled(False)
                     self.app.pause_button.setEnabled(True)
+
+                # Clear table selection and reset related variables
+                self.app.object_table.clearSelection()
+                self.app.selected_object_ids = []
+                self.app.selecting_object = False
+                self.app.selecting_region = False
+                self.app.update_object_table()
 
                 self.app.video_processor.refresh_video_display()
                 self.app.video_processor.play_video()

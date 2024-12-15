@@ -6,6 +6,7 @@ import cProfile
 import pstats
 
 def main():
+    # Uncomment to profile the application
     # profiler = cProfile.Profile()
     # profiler.enable()
 
@@ -15,8 +16,11 @@ def main():
     result = app.exec_()
 
     # profiler.disable()
-    # stats = pstats.Stats(profiler).sort_stats('cumtime')
-    # stats.print_stats(10)  # Prints the top 10 functions with the most cumulative time
+    # with open("profile_stats.txt", "w") as f:
+    #     stats = pstats.Stats(profiler, stream=f)
+    #     stats.strip_dirs()
+    #     stats.sort_stats("cumulative")
+    #     stats.print_stats()
 
     sys.exit(result)
 
