@@ -6,15 +6,15 @@ To run the program, certain requirements need to be downloaded.
 
 Requirements:
 
---index-url https://download.pytorch.org/whl/cu118
-torch==2.5.0+cu118
-torchvision==0.20.0+cu118
-torchaudio==2.5.0+cu118
-PyQt5
-ultralytics
-opencv-python
-numpy
-deep-sort-realtime
+- --index-url https://download.pytorch.org/whl/cu118
+- torch==2.5.0+cu118
+- torchvision==0.20.0+cu118
+- torchaudio==2.5.0+cu118
+- PyQt5
+- ultralytics
+- opencv-python
+- numpy
+- deep-sort-realtime
 
 These requirements are available in the requirements.txt file.
 
