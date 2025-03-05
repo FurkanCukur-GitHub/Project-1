@@ -47,21 +47,18 @@ Extract the downloaded cuDNN v8.9.7 ZIP file into a folder.
 Copy the Required Files
 Inside the extracted folder, there will be folders such as bin, include, and lib. You need to copy these to the directory where CUDA is installed as follows:
 
-1)
 cuDNN File Location (Source):
 - cudnn/bin/cudnn64_8.dll
 
 Destination Location (New Location):
 - C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
 
-2)
 cuDNN File Location (Source):
 - cudnn/include/cudnn.h
 
 Destination Location (New Location):
 - C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\include
 
-3)
 cuDNN File Location (Source):
 - cudnn/lib/x64/cudnn.lib
 
