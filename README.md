@@ -49,29 +49,29 @@ Inside the extracted folder, there will be folders such as bin, include, and lib
 
 1)
 cuDNN File Location (Source):
-cudnn/bin/cudnn64_8.dll
+- cudnn/bin/cudnn64_8.dll
 
 Destination Location (New Location):
-C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
+- C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
 
 2)
 cuDNN File Location (Source):
-cudnn/include/cudnn.h
+- cudnn/include/cudnn.h
 
 Destination Location (New Location):
-C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\include
+- C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\include
 
 3)
 cuDNN File Location (Source):
-cudnn/lib/x64/cudnn.lib
+- cudnn/lib/x64/cudnn.lib
 
 Destination Location (New Location):
-C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\lib\x64
+- C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\lib\x64
 
 In summary:
-cudnn64_8.dll from cuDNN's bin folder → CUDA's bin folder
-cudnn.h from cuDNN's include folder → CUDA's include folder
-cudnn.lib from cuDNN's lib\x64 folder → CUDA's lib\x64 folder
+- cudnn64_8.dll from cuDNN's bin folder → CUDA's bin folder
+- cudnn.h from cuDNN's include folder → CUDA's include folder
+- cudnn.lib from cuDNN's lib\x64 folder → CUDA's lib\x64 folder
 
 --------------------------------------------------------------------
 
@@ -83,8 +83,8 @@ Control Panel → System → Advanced system settings → Environment Variables
 Under "System Variables," select Path and click Edit.
 
 Click New and add the following paths:
-C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
-C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\lib\x64
+- C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\bin
+- C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v11.8\lib\x64
 
 Save and close by clicking OK.
 
