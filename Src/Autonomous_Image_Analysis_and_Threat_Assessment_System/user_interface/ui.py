@@ -217,7 +217,7 @@ class Application(QWidget):
         button_specs = [
             ("Select Object", self.event_handlers.select_object, "#2980B9"),
             ("Select Region", self.event_handlers.select_region, "#2980B9"),
-            ("Mark as Adversary", self.event_handlers.mark_adversary, "#C0392B"),
+            ("Mark as Foe", self.event_handlers.mark_foe, "#C0392B"),
             ("Reset Status", self.event_handlers.reset_status, "#7F8C8D"),
             ("Mark as Friend", self.event_handlers.mark_friend, "#27AE60"),
         ]
@@ -249,9 +249,9 @@ class Application(QWidget):
             if text == "Mark as Friend":
                 self.mark_friend_button = btn
                 self.mark_friend_button.setEnabled(False)
-            elif text == "Mark as Adversary":
-                self.mark_adversary_button = btn
-                self.mark_adversary_button.setEnabled(False)
+            elif text == "Mark as Foe":
+                self.mark_foe_button = btn
+                self.mark_foe_button.setEnabled(False)
             elif text == "Reset Status":
                 self.reset_status_button = btn
                 self.reset_status_button.setEnabled(False)
@@ -337,14 +337,14 @@ class Application(QWidget):
                     break
 
             if object_selected:
-                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_adversary_button') and hasattr(self, 'reset_status_button'):
+                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_foe_button') and hasattr(self, 'reset_status_button'):
                     self.mark_friend_button.setEnabled(True)
-                    self.mark_adversary_button.setEnabled(True)
+                    self.mark_foe_button.setEnabled(True)
                     self.reset_status_button.setEnabled(True)
             else:
-                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_adversary_button') and hasattr(self, 'reset_status_button'):
+                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_foe_button') and hasattr(self, 'reset_status_button'):
                     self.mark_friend_button.setEnabled(False)
-                    self.mark_adversary_button.setEnabled(False)
+                    self.mark_foe_button.setEnabled(False)
                     self.reset_status_button.setEnabled(False)
                 print("No object selected.")
 
@@ -378,14 +378,14 @@ class Application(QWidget):
                     objects_selected = True
 
             if objects_selected:
-                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_adversary_button') and hasattr(self, 'reset_status_button'):
+                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_foe_button') and hasattr(self, 'reset_status_button'):
                     self.mark_friend_button.setEnabled(True)
-                    self.mark_adversary_button.setEnabled(True)
+                    self.mark_foe_button.setEnabled(True)
                     self.reset_status_button.setEnabled(True)
             else:
-                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_adversary_button') and hasattr(self, 'reset_status_button'):
+                if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_foe_button') and hasattr(self, 'reset_status_button'):
                     self.mark_friend_button.setEnabled(False)
-                    self.mark_adversary_button.setEnabled(False)
+                    self.mark_foe_button.setEnabled(False)
                     self.reset_status_button.setEnabled(False)
                 print("No objects found in the selected region.")
 
@@ -403,11 +403,13 @@ class Application(QWidget):
             
             # Add object to object_statuses if not present
             if track_id not in self.object_statuses:
+                base_threat = self.threat_assessment.threat_coefficients.get(cls, 1.0)
                 self.object_statuses[track_id] = {
-                    'status': 'Unknown', 
-                    'selected': False, 
-                    'threat_level': 1.0
+                    'status': 'Unknown',
+                    'selected': False,
+                    'threat_level': base_threat
                 }
+
 
             status = self.object_statuses[track_id]['status']
             threat = self.object_statuses[track_id]['threat_level']
@@ -429,7 +431,7 @@ class Application(QWidget):
             if is_selected:
                 background_color = QColor('#FFA500')  # Orange for selected
             else:
-                if status == "adversary":
+                if status == "foe":
                     background_color = QColor('#C0392B')  # Red
                 elif status == "friend":
                     background_color = QColor('#27AE60')  # Green
@@ -472,9 +474,9 @@ class Application(QWidget):
         self.selected_object_ids = [track_id]
 
         # Enable buttons
-        if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_adversary_button') and hasattr(self, 'reset_status_button'):
+        if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_foe_button') and hasattr(self, 'reset_status_button'):
             self.mark_friend_button.setEnabled(True)
-            self.mark_adversary_button.setEnabled(True)
+            self.mark_foe_button.setEnabled(True)
             self.reset_status_button.setEnabled(True)
 
         # Update table
@@ -492,9 +494,9 @@ class Application(QWidget):
         self.selected_object_ids = []
 
         # Disable action buttons
-        if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_adversary_button') and hasattr(self, 'reset_status_button'):
+        if hasattr(self, 'mark_friend_button') and hasattr(self, 'mark_foe_button') and hasattr(self, 'reset_status_button'):
             self.mark_friend_button.setEnabled(False)
-            self.mark_adversary_button.setEnabled(False)
+            self.mark_foe_button.setEnabled(False)
             self.reset_status_button.setEnabled(False)
 
         # Clear table selection

@@ -9,14 +9,14 @@ class ThreatAssessment:
         self.threat_coefficients = {
             "Human": 1.0,
             "Drone": 2.0,
-            "Helicopter": 3.0,
+            "Helicopter": 5.0,
             "Missile": 5.0,
-            "Missile Launchers": 4.5,
-            "Aircraft": 3.5,
+            "Missile Launchers": 5.0,
+            "Aircraft": 5.0,
             "Tank": 4.0,
-            "Truck": 2.5,
-            "Warship": 4.5,
-            "Weapon": 3.0,
+            "Truck": 3.0,
+            "Warship": 5.0,
+            "Weapon": 7.0,
             "Unknown": 1.0,
         }
 
@@ -51,12 +51,12 @@ class ThreatAssessment:
                 'class': cls,
                 'bbox': bbox,
                 'status': status,
-                'threat_level': 0.0
+                'threat_level': self.threat_coefficients.get(cls, self.threat_coefficients["Unknown"])
             }
 
         # Precompute group centers for friends and enemies
         friend_objects = [obj for obj in objects.values() if obj['status'] == 'friend']
-        enemy_objects = [obj for obj in objects.values() if obj['status'] == 'adversary']
+        enemy_objects = [obj for obj in objects.values() if obj['status'] == 'foe']
 
         friend_centers = self.get_group_centers(friend_objects)
         enemy_centers = self.get_group_centers(enemy_objects)
@@ -69,7 +69,7 @@ class ThreatAssessment:
             
             if status == 'friend':
                 multiplier = 0
-            elif status == 'adversary':
+            elif status == 'foe':
                 multiplier = 3
             else:
                 multiplier = 1
@@ -79,7 +79,7 @@ class ThreatAssessment:
 
         # Apply proximity rules
         for enemy_id, enemy in objects.items():
-            if enemy['status'] != 'adversary':
+            if enemy['status'] != 'foe':
                 continue  # Only consider enemies for threat adjustments
 
             enemy_bbox = enemy['bbox']
@@ -111,7 +111,7 @@ class ThreatAssessment:
             for other_id, other in objects.items():
                 if other_id == enemy_id:
                     continue
-                if other['status'] not in ['friend', 'adversary']:
+                if other['status'] not in ['friend', 'foe']:
                     continue
                 distance = self.calculate_distance(enemy_bbox, other['bbox'])
                 if distance < 100:
@@ -130,7 +130,7 @@ class ThreatAssessment:
         # 5. Cap threat levels
         for obj in objects.values():
             cls = obj['class']
-            max_threat = self.max_threat_levels.get(cls, 10.0)
+            max_threat = self.max_threat_levels.get(cls, 100.0)
             obj['threat_level'] = self.clamp(obj['threat_level'], 0, max_threat)
 
         # Update threat levels in the application

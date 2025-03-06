@@ -26,8 +26,8 @@ class VideoProcessor:
         self.object_detector = app.object_detector
         self.object_tracker = ObjectTracker()
         
-        self.frames_queue = Queue(maxsize= BATCH_SIZE * 2)
-        self.processed_frames_queue = Queue(maxsize= BATCH_SIZE * 2)
+        self.frames_queue = Queue(maxsize=BATCH_SIZE * 2)
+        self.processed_frames_queue = Queue(maxsize=BATCH_SIZE * 2)
 
         self.current_tracked_objects = []
         self.frame = None
@@ -230,33 +230,40 @@ class VideoProcessor:
 
     def draw_boxes(self, frame, tracked_objects):
         for obj in tracked_objects:
-            x1, y1, x2, y2 = map(int, obj['bbox'])
-            track_id = obj['track_id']
-            cls = obj['cls']
-            conf = obj['conf']
+            track_id_str = str(obj['track_id'])
 
-            status_info = self.app.object_statuses.get(track_id, {'status': 'Unknown', 'selected': False})
+            x1, y1, x2, y2 = map(int, obj['bbox'])
+
+            status_info = self.app.object_statuses.get(
+                track_id_str,
+                {'status': 'Unknown', 'selected': False, 'threat_level': None}
+            )
+
             status = status_info.get('status', 'Unknown')
             selected = status_info.get('selected', False)
             threat_level = status_info.get('threat_level', None)
 
             if selected:
-                color = (0, 165, 255)
+                color = (0, 165, 255)       
             elif status == 'friend':
-                color = (0, 255, 0)
-            elif status == 'adversary':
-                color = (0, 0, 255)
+                color = (0, 255, 0)        
+            elif status == 'foe':
+                color = (0, 0, 255)        
             else:
-                color = (175, 175, 0)
+                color = (175, 175, 0)      
 
-            threat_text = f"Threat:{int(threat_level)}" if threat_level is not None else "Threat: N/A"
+
+            if threat_level is not None:
+                threat_text = f"Threat:{int(threat_level)}"
+            else:
+                threat_text = "Threat: N/A"
 
             cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
 
             text_lines = [
                 threat_text,
-                f"{cls}",
-                f"ID:{track_id}"
+                f"{obj['cls']}",
+                f"ID:{track_id_str}"
             ]
 
             box_width = x2 - x1

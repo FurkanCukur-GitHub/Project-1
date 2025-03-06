@@ -4,9 +4,9 @@
 BATCH_SIZE = 8
 
 # DeepSort configuration
-MAX_AGE = 30
+MAX_AGE = 60
 N_INIT = 5
-NMS_MAX_OVERLAP = 0.7
+NMS_MAX_OVERLAP = 0.5
 
 # Model configuration
-MODEL_PATH = f"models/yolo_model_b{BATCH_SIZE}.engine"
+MODEL_PATH = '../models/yolo_model.pt'

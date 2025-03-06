@@ -47,9 +47,9 @@ class EventHandlers:
             self.app.selecting_region = False
             self.app.selecting_object = False
 
-            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
+            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_foe_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
                 self.app.mark_friend_button.setEnabled(False)
-                self.app.mark_adversary_button.setEnabled(False)
+                self.app.mark_foe_button.setEnabled(False)
                 self.app.reset_status_button.setEnabled(False)
                 self.app.threat_assessment_button.setEnabled(False)
             
@@ -62,13 +62,13 @@ class EventHandlers:
         else:
             print("No objects selected to mark as Friend.")
 
-    def mark_adversary(self):
+    def mark_foe(self):
         if self.app.selected_object_ids:
             for track_id in self.app.selected_object_ids:
                 if track_id not in self.app.object_statuses:
                     self.app.object_statuses[track_id] = {'status': None, 'selected': False, 'threat_level': 1.0}
-                self.app.object_statuses[track_id]['status'] = 'adversary'
-                print(f"Object {track_id} marked as Adversary.")
+                self.app.object_statuses[track_id]['status'] = 'foe'
+                print(f"Object {track_id} marked as Foe.")
             # Clear selections
             self.app.selected_object_ids = []
             for track_id in self.app.object_statuses.keys():
@@ -78,9 +78,9 @@ class EventHandlers:
             self.app.selecting_region = False
             self.app.selecting_object = False
 
-            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
+            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_foe_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
                 self.app.mark_friend_button.setEnabled(False)
-                self.app.mark_adversary_button.setEnabled(False)
+                self.app.mark_foe_button.setEnabled(False)
                 self.app.reset_status_button.setEnabled(False)
                 self.app.threat_assessment_button.setEnabled(False)
             
@@ -91,7 +91,7 @@ class EventHandlers:
             self.app.video_processor.refresh_video_display()
             self.app.update_object_table()
         else:
-            print("No objects selected to mark as Adversary.")
+            print("No objects selected to mark as Foe.")
 
     def reset_status(self):
         if self.app.selected_object_ids:
@@ -110,9 +110,9 @@ class EventHandlers:
             self.app.selecting_object = False
 
             # Disable buttons
-            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_adversary_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
+            if hasattr(self.app, 'mark_friend_button') and hasattr(self.app, 'mark_foe_button') and hasattr(self.app, 'reset_status_button') and hasattr(self.app, 'threat_assessment_button'):
                 self.app.mark_friend_button.setEnabled(False)
-                self.app.mark_adversary_button.setEnabled(False)
+                self.app.mark_foe_button.setEnabled(False)
                 self.app.reset_status_button.setEnabled(False)
                 self.app.threat_assessment_button.setEnabled(False)
 
