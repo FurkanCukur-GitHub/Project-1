@@ -1,14 +1,15 @@
 # main.py
-from PyQt5.QtWidgets import QApplication
-from user_interface.ui import Application
 import sys
+from PyQt5.QtWidgets import QApplication
+from user_interface.splash import SplashScreen
 
 def main():
     app = QApplication(sys.argv)
-    window = Application()
-    window.show()
-    result = app.exec_()
-    sys.exit(result)
+
+    splash = SplashScreen()
+    splash.show()
+
+    sys.exit(app.exec_())
 
 if __name__ == "__main__":
     main()

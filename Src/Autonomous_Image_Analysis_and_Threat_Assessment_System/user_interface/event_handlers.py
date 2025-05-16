@@ -1,6 +1,7 @@
 # user_interface/event_handlers.py
 import cv2
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
+from PyQt5.QtGui import QImage, QPixmap
 
 class EventHandlers:
     def __init__(self, app):
@@ -12,24 +13,44 @@ class EventHandlers:
             self.pause_video()
         self.app.selecting_object = True
         self.app.selecting_region = False
-
-        # Clear existing selections using the helper method
+        self.app.selecting_friendly_zone = False
+        self.app.selecting_enemy_zone = False
         self.app.clear_selections()
-
-        print("Select Object mode activated. Click on an object in the video.")
+        print("Select Object mode activated.")
 
     def select_region(self):
         if self.app.playing:
             self.pause_video()
-
-        # Activate Select Region mode
         self.app.selecting_region = True
         self.app.selecting_object = False
-
-        # Clear existing selections using the helper method
+        self.app.selecting_friendly_zone = False
+        self.app.selecting_enemy_zone = False
         self.app.clear_selections()
+        print("Select Region mode activated.")
 
-        print("Select Region mode activated. You can select multiple regions until you mark, play, or switch modes.")
+    def select_friendly_zone(self):
+        if self.app.playing:
+            self.pause_video()
+        self.app.selecting_friendly_zone = True
+        self.app.selecting_enemy_zone = False
+        self.app.selecting_region = False
+        self.app.selecting_object = False
+        print("Select Friendly Zone mode activated.")
+
+    def select_enemy_zone(self):
+        if self.app.playing:
+            self.pause_video()
+        self.app.selecting_enemy_zone = True
+        self.app.selecting_friendly_zone = False
+        self.app.selecting_region = False
+        self.app.selecting_object = False
+        print("Select Enemy Zone mode activated.")
+
+    def clear_zones(self):
+        self.app.friendly_zones.clear()
+        self.app.enemy_zones.clear()
+        print("All defined zones cleared.")
+        self.app.video_processor.refresh_video_display()
 
     def mark_friend(self):
         if self.app.selected_object_ids:
@@ -163,7 +184,7 @@ class EventHandlers:
             self.app.display_height = self.app.video_frame_height
             self.app.current_frame = 0
 
-            # Start video processing for the selected video
+            # 1) İşlemeye başla, ama oynatma başlatma
             self.app.video_processor.stop_processing_frames()
             self.app.video_processor.start_processing_on_selection(
                 video_path=self.app.video_path,
@@ -171,11 +192,30 @@ class EventHandlers:
                 display_height=self.app.display_height
             )
 
-            self.resume_video()
+            # 2) Kuyruktan ilk işlenmiş frame'i al, önizleme olarak göster
+            try:
+                first = self.app.video_processor.processed_frames_queue.get(timeout=5)
+                frame = first["frame"]
+                objs  = first["tracked_objects"]
+                disp = self.app.video_processor.draw_boxes(frame.copy(), objs)
 
+                rgb = cv2.cvtColor(disp, cv2.COLOR_BGR2RGB)
+                h, w, ch = rgb.shape
+                bytes_per_line = ch * w
+                q_img = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                pixmap = QPixmap.fromImage(q_img)
+                self.app.video_label.setPixmap(pixmap)
+                self.app.video_info_label.setText(
+                    f"Preview Frame: {first['frame_number']} | "
+                    f"{self.app.display_width}x{self.app.display_height}"
+                )
+            except Exception as e:
+                print("Önizleme yüklenirken hata:", e)
+
+            # 3) Play tuşunu aktif, pause tuşunu pasif yap
             if hasattr(self.app, 'play_button') and hasattr(self.app, 'pause_button'):
-                self.app.play_button.setEnabled(False)
-                self.app.pause_button.setEnabled(True)
+                self.app.play_button.setEnabled(True)
+                self.app.pause_button.setEnabled(False)
         else:
             self.app.video_label.clear()
             self.app.video_info_label.setText("No video selected.")
