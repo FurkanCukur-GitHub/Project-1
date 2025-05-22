@@ -18,6 +18,11 @@ Requirements:
 
 These requirements are available in the requirements.txt file.
 
+The requirements can be downloaded by running the following lines on the command line:
+pip install torch==2.5.0+cu118 torchvision==0.20.0+cu118 torchaudio==2.5.0+cu118 --index-url https://download.pytorch.org/whl/cu118
+pip install PyQt5 ultralytics opencv-python numpy deep-sort-realtime
+pip install scikit-learn matplotlib pandas
+
 --------------------------------------------------------------------
 
 For the system to work using the GPU:
