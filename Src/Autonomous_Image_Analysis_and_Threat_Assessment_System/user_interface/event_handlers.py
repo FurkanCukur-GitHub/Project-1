@@ -2,6 +2,8 @@
 import cv2
 from PyQt5.QtWidgets import QFileDialog, QMessageBox
 from PyQt5.QtGui import QImage, QPixmap
+from threat_assessment.config import PIXEL_TO_METER
+import numpy as np
 
 class EventHandlers:
     def __init__(self, app):
@@ -118,7 +120,7 @@ class EventHandlers:
         if self.app.selected_object_ids:
             for track_id in self.app.selected_object_ids:
                 if track_id in self.app.object_statuses:
-                    self.app.object_statuses[track_id]['status'] = 'Unknown'
+                    self.app.object_statuses[track_id]['status'] = 'unknown'
                     self.app.object_statuses[track_id]['selected'] = False
                     print(f"Object {track_id} status reset to Unknown.")
             # Clear selections
@@ -205,10 +207,6 @@ class EventHandlers:
                 q_img = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
                 pixmap = QPixmap.fromImage(q_img)
                 self.app.video_label.setPixmap(pixmap)
-                self.app.video_info_label.setText(
-                    f"Preview Frame: {first['frame_number']} | "
-                    f"{self.app.display_width}x{self.app.display_height}"
-                )
             except Exception as e:
                 print("Önizleme yüklenirken hata:", e)
 
@@ -218,7 +216,6 @@ class EventHandlers:
                 self.app.pause_button.setEnabled(False)
         else:
             self.app.video_label.clear()
-            self.app.video_info_label.setText("No video selected.")
             self.app.video_path = None
             print("No video selected.")
 
@@ -229,7 +226,6 @@ class EventHandlers:
                 self.app.cap.release()
                 self.app.cap = None
                 self.app.video_label.clear()
-                self.app.video_info_label.setText("No video selected.")
                 print("Video stopped.")
 
                 self.app.video_processor.stop_processing_frames()
@@ -299,3 +295,36 @@ class EventHandlers:
         except Exception as e:
             print(f"Error during application exit: {e}")
             self.app.close()
+
+    
+    # def calculate_distance_between_selected(self):
+    #     if len(self.app.selected_object_ids) != 2:
+    #         print("Lütfen tam olarak iki nesne seçin.")
+    #         return
+
+    #     id1, id2 = self.app.selected_object_ids
+    #     obj1 = next((obj for obj in self.app.video_processor.current_tracked_objects if str(obj["track_id"]) == id1), None)
+    #     obj2 = next((obj for obj in self.app.video_processor.current_tracked_objects if str(obj["track_id"]) == id2), None)
+
+    #     if obj1 is None or obj2 is None:
+    #         print("Seçili nesneler aktif karede bulunamadı.")
+    #         return
+
+    #     bbox1, bbox2 = obj1["bbox"], obj2["bbox"]
+
+    #     # PİKSEL MERKEZİ
+    #     cx1 = (bbox1[0] + bbox1[2]) / 2
+    #     cy1 = (bbox1[1] + bbox1[3]) / 2
+    #     cx2 = (bbox2[0] + bbox2[2]) / 2
+    #     cy2 = (bbox2[1] + bbox2[3]) / 2
+
+    #     center1 = np.array([cx1, cy1])
+    #     center2 = np.array([cx2, cy2])
+
+    #     # Piksel cinsinden mesafe
+    #     distance_px = np.linalg.norm(center2 - center1)
+    #     print(f"Aralarındaki piksel mesafesi: {distance_px:.2f} px")
+
+    #     # Metre cinsine çevir
+    #     distance_m = distance_px * PIXEL_TO_METER
+    #     print(f"Yaklaşık mesafe: {distance_m:.2f} metre")

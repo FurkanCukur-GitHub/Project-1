@@ -5,89 +5,105 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont, QPixmap
+from project_utils.config import SCALE
 from user_interface.ui import Application
 
 
 class SplashScreen(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.window_width = 2060
-        self.window_height = 1200
+
+        # ───────── Ölçek faktörü ─────────
+        self.SCALE = SCALE
+        s = self.SCALE               # kısaltma
+
+        # Pencere boyutu
+        self.window_width  = int(2260 * s)
+        self.window_height = int(1200 * s)
         self.setFixedSize(self.window_width, self.window_height)
         self.setWindowTitle("Detect System")
 
-        # Make the entire QMainWindow background match the dark color
+        # Arka plan rengi
         self.setStyleSheet("background-color: #1F2224;")
 
-        self.main_window = None
-        self.initialized = False
+        self.main_window  = None
+        self.initialized  = False
 
-        # Central widget + layout
-        self.central_widget = QWidget()
+        # ───────── Merkez widget + layout ─────────
+        self.central_widget  = QWidget()
         self.setCentralWidget(self.central_widget)
-        self.central_layout = QVBoxLayout(self.central_widget)
-        # You can tweak these margins or set them to zero if you want no padding at all
+        self.central_layout  = QVBoxLayout(self.central_widget)
         self.central_layout.setContentsMargins(20, 20, 20, 20)
 
-        # Container frame (removed the "border" property, kept border-radius if you want curved corners)
+        # ───────── Konteyner çerçevesi ─────────
         self.container_frame = QFrame()
-        self.container_frame.setStyleSheet("""
+        self.container_frame.setStyleSheet(f"""
             background-color: #1F2224;
-            border-radius: 20px;
+            border-radius: {int(20 * s)}px;
         """)
         self.central_layout.addWidget(self.container_frame)
 
-        # Layout inside container frame
         self.layout = QVBoxLayout(self.container_frame)
         self.layout.setAlignment(Qt.AlignCenter)
 
-        # Spacer at the top
-        self.layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        # Spacer (üst)
+        self.layout.addSpacerItem(
+            QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        )
 
-        # Circle label with an image inside
+        # ───────── Daire içindeki logo ─────────
         self.circle_label = QLabel()
-        self.circle_label.setFixedSize(800, 800)
-        self.circle_label.setStyleSheet("""
+        circle_size = int(800 * s)
+        self.circle_label.setFixedSize(circle_size, circle_size)
+        self.circle_label.setStyleSheet(f"""
             background-color: #0B0F11;
-            border-radius: 400px;
+            border-radius: {circle_size // 2}px;
         """)
         self.circle_label.setAlignment(Qt.AlignCenter)
 
         pixmap = QPixmap("others\\SYSTEM.png")
-        scaled_pixmap = pixmap.scaled(600, 600, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+        pixmap_size = int(600 * s)
+        scaled_pixmap = pixmap.scaled(
+            pixmap_size, pixmap_size,
+            Qt.IgnoreAspectRatio, Qt.SmoothTransformation
+        )
         self.circle_label.setPixmap(scaled_pixmap)
         self.layout.addWidget(self.circle_label, alignment=Qt.AlignHCenter)
 
-        # Spacer before the button
-        self.layout.addSpacing(100)
+        # Spacer (logo ile buton arası)
+        self.layout.addSpacing(int(100 * s))
 
-        # Start button
+        # ───────── START butonu ─────────
         self.start_button = QPushButton("START")
-        self.start_button.setFixedSize(250, 60)
+        self.start_button.setFixedSize(int(250 * s), int(60 * s))
         self.start_button.setCursor(Qt.PointingHandCursor)
-        self.start_button.setFont(QFont("Arial", 16, QFont.Bold))
-        self.start_button.setStyleSheet("""
-            QPushButton {
+        self.start_button.setFont(QFont("Arial", max(int(16 * s), 9), QFont.Bold))
+        radius = int(30 * s)
+        self.start_button.setStyleSheet(f"""
+            QPushButton {{
                 background-color: #BBD8E5;
                 color: #1D2B36;
                 border: none;
-                border-radius: 30px;
-            }
-            QPushButton:hover {
+                border-radius: {radius}px;
+            }}
+            QPushButton:hover {{
                 background-color: #CBE3EF;
-            }
+            }}
         """)
         self.start_button.clicked.connect(self.start_app)
         self.layout.addWidget(self.start_button, alignment=Qt.AlignHCenter)
 
-        # Spacer at the bottom
-        self.layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        # Spacer (alt)
+        self.layout.addSpacerItem(
+            QSpacerItem(0, 0, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        )
 
-        # Footer info (bottom-right corner)
+        # ───────── Footer bilgisi ─────────
         self.footer_layout = QHBoxLayout()
-        self.footer_layout.addSpacerItem(QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        self.footer_label = QLabel()
-        self.footer_label.setText(
+        self.footer_layout.addSpacerItem(
+            QSpacerItem(0, 0, QSizePolicy.Expanding, QSizePolicy.Minimum)
+        )
+        self.footer_label = QLabel(
             "<div style='color: #AAAAAA; text-align: right;'>"
             "<p>Developed by <b>Furkan, Beyza, Burhan</b></p>"
             "<p>Version <b>1.0.0</b></p>"
@@ -99,18 +115,21 @@ class SplashScreen(QMainWindow):
         self.footer_layout.addWidget(self.footer_label)
         self.layout.addLayout(self.footer_layout)
 
-        # Timer for delayed launch
+        # ───────── Timer ─────────
         self.timer = QTimer()
         self.timer.setSingleShot(True)
         self.timer.timeout.connect(self.launch_main_app)
 
+    # ------------------------------------------------------------------ #
+    #                    Event & yardımcı metotlar                       #
+    # ------------------------------------------------------------------ #
     def showEvent(self, event):
         super().showEvent(event)
         self.center_window()
 
     def center_window(self):
         screen = QApplication.primaryScreen().availableGeometry()
-        x = (screen.width() - self.window_width) // 2
+        x = (screen.width()  - self.window_width)  // 2
         y = (screen.height() - self.window_height) // 2
         self.move(x, y)
 

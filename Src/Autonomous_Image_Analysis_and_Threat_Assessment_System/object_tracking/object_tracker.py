@@ -44,8 +44,7 @@ class ObjectTracker:
             max_age         = MAX_AGE,
             n_init          = N_INIT,
             nms_max_overlap = NMS_MAX_OVERLAP,
-            half            = (self.device == 'cuda'),
-            embedder_gpu    = (self.device == 'cuda')
+            embedder=None
         )
 
         self.next_app_id  = 1

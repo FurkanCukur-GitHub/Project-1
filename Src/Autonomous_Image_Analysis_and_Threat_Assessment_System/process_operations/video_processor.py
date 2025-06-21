@@ -10,6 +10,9 @@ from PyQt5.QtCore import QTimer
 from object_tracking.object_tracker import ObjectTracker
 from queue import Queue, Full, Empty
 
+from project_utils.config import BATCH_SIZE
+
+
 class FPSCounter:
     def __init__(self):
         self.last_time = time.time()
@@ -27,27 +30,21 @@ class VideoProcessor:
         self.object_detector = app.object_detector
         self.object_tracker = ObjectTracker()
 
-        # Kuyruklar daha sonra start_processing_on_selection'da frame sayısına göre yeniden oluşturulacak
         self.frames_queue = None
         self.processed_frames_queue = None
 
         self.current_tracked_objects = []
         self.frame = None
         self.stop_processing = False
-
-        self.batch_size = 4
+        self.batch_size = BATCH_SIZE
 
         self.fps_counter = FPSCounter()
 
-        # Stream A: Veri kopyalama ve preprocess
+        # CUDA stream’ler
         self.stream_a = torch.cuda.Stream()
-        # Stream B: Model inference
         self.stream_b = torch.cuda.Stream()
-        # Stream C: CPU'ya al / parse
         self.stream_c = torch.cuda.Stream()
 
-
-        # input tensor’ı sadece bir kere oluştur (optimizasyon için)
         self.input_h = display_height
         self.input_w = display_width
         self.input_tensor = torch.empty(
@@ -56,11 +53,15 @@ class VideoProcessor:
             dtype=torch.half
         )
 
-
         self.frame_reading_thread = None
         self.inference_thread = None
 
-        # GUI timer (Qt ana-thread’inde çalışır)
+        # ---<EKLENDİ>---  Başlangıç nesne filtresi
+        self.initial_object_ids = set()
+        self.initialization_done = False
+        self.initialization_frame_count = 10          # ilk N kare
+        # ---<EKLENDİ>---
+
         self.timer = QTimer()
         self.timer.timeout.connect(self.play_video)
 
@@ -71,16 +72,19 @@ class VideoProcessor:
         self.stop_processing_frames()
         self.stop_processing = False
 
-        # --- Video toplam frame sayısını al ve kuyrukları yeniden oluştur ---
+        # ---<EKLENDİ>---  filtreyi sıfırla
+        self.initial_object_ids.clear()
+        self.initialization_done = False
+        # ---<EKLENDİ>---
+
         cap_info = cv2.VideoCapture(video_path, cv2.CAP_FFMPEG)
         total_frames = int(cap_info.get(cv2.CAP_PROP_FRAME_COUNT))
         cap_info.release()
+
         self.frames_queue = Queue(maxsize=total_frames)
         self.processed_frames_queue = Queue(maxsize=total_frames)
-        # batch_size'ı da videonun uzunluğuna göre ayarla
         self.batch_size = min(self.batch_size, total_frames)
 
-        # Frame okuma
         self.frame_reading_thread = threading.Thread(
             target=self.read_frames,
             args=(video_path, display_width, display_height),
@@ -88,7 +92,6 @@ class VideoProcessor:
             name="FrameReadingThread"
         )
 
-        # Inference + tracking
         self.inference_thread = threading.Thread(
             target=self.process_frames,
             daemon=True,
@@ -105,7 +108,6 @@ class VideoProcessor:
             if thread is not None and thread.is_alive():
                 thread.join(timeout=5)
 
-        # Kuyrukları temizle (bloklanmayı önler)
         if self.frames_queue:
             with self.frames_queue.mutex:
                 self.frames_queue.queue.clear()
@@ -140,6 +142,7 @@ class VideoProcessor:
 
         cap.release()
 
+
     # ------------------------------------------------------------------ #
     # 3 – Inference + tracking
     # ------------------------------------------------------------------ #
@@ -153,23 +156,18 @@ class VideoProcessor:
                 batch.append(data)
 
                 if len(batch) >= self.batch_size:
-                    print(f"[DEBUG] Processing full batch of {len(batch)} frames.")
                     self.process_batch(batch)
                     batch = []
                     last_time = time.time()
 
             except Empty:
-                # 0.2 saniye içinde yeni frame gelmediyse kalan batch'i işle
                 if batch and (time.time() - last_time > 0.2):
-                    print(f"[DEBUG] Processing partial batch of {len(batch)} frames (timeout).")
                     self.process_batch(batch)
                     batch = []
                     last_time = time.time()
 
         if batch:
-            print(f"[DEBUG] Processing remaining batch of {len(batch)} frames (end of stream).")
             self.process_batch(batch)
-
 
     def process_batch(self, frames_batch):
         valid = [d for d in frames_batch if isinstance(d["frame"], np.ndarray)]
@@ -178,47 +176,62 @@ class VideoProcessor:
 
         batch_len = len(valid)
 
-        # --- STREAM A: Normalize ve kopyala --- #
+        # --- STREAM A --- #
         with torch.cuda.stream(self.stream_a):
             frames = [
                 cv2.cvtColor(d["frame"], cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
                 for d in valid
             ]
-            frames_np = np.stack(frames).transpose(0, 3, 1, 2)  # NHWC → NCHW
+            frames_np = np.stack(frames).transpose(0, 3, 1, 2)
             temp_tensor = torch.from_numpy(frames_np).to(dtype=torch.half, non_blocking=True)
             self.input_tensor[:batch_len].copy_(temp_tensor.to(self.input_tensor.device))
 
-        # --- STREAM B: Model inference --- #
+        # --- STREAM B --- #
         with torch.cuda.stream(self.stream_b):
             with torch.inference_mode():
                 input_tensor = self.input_tensor[:batch_len]
-                print(f"[DEBUG] Tensor shape to model: {input_tensor.shape}")
-                # DOĞRUDAN nn.Module forward fonksiyonu çağırıyoruz
-                human_res = self.object_detector.human_detector.model.predict(input_tensor, stream=False)
-                vehicle_res = self.object_detector.vehicle_detector.model.predict(input_tensor, stream=False)
-                
-        # --- STREAM C: Parsing işlemi --- #
+                human_res = self.object_detector.human_detector.model.predict(
+                    input_tensor, stream=False, verbose=False
+                )
+                vehicle_res = self.object_detector.vehicle_detector.model.predict(
+                    input_tensor, stream=False, verbose=False
+                )
+
+        # --- STREAM C --- #
         with torch.cuda.stream(self.stream_c):
             detections_batch = []
             for hr, vr in zip(human_res, vehicle_res):
                 dets = []
-                dets.extend(self.object_detector._parse(hr, self.object_detector.human_names, threshold=0.1))
-                dets.extend(self.object_detector._parse(vr, self.object_detector.vehicle_names, threshold=0.1))
+                dets.extend(self.object_detector._parse(hr, self.object_detector.human_names, 0.1))
+                dets.extend(self.object_detector._parse(vr, self.object_detector.vehicle_names, 0.1))
                 detections_batch.append(dets)
 
-
-        # --- GPU işlemleri tamamlandığından emin ol --- #
         torch.cuda.synchronize()
 
-        # --- Takip ve kuyruk işlemleri --- #
+        # --- Takip & Filtre --- #
         for data, detections in zip(valid, detections_batch):
             frame = data["frame"]
-            frame_number = data["frame_number"]
+            fnum = data["frame_number"]
             tracked_objects = self.object_tracker.update_tracks(detections, frame)
-            
+
+            # ---<EKLENDİ 1>---  İlk N karede görülen ID’leri topla
+            if not self.initialization_done:
+                for obj in tracked_objects:
+                    self.initial_object_ids.add(obj["track_id"])
+                if fnum + 1 >= self.initialization_frame_count:
+                    self.initialization_done = True
+            # ---<EKLENDİ 1>---
+
+            # ---<EKLENDİ 2>---  Yeni nesneleri tamamen yok say
+            if self.initialization_done:
+                tracked_objects = [
+                    obj for obj in tracked_objects
+                    if obj["track_id"] in self.initial_object_ids
+                ]
+            # ---<EKLENDİ 2>---
 
             processed = {
-                "frame_number": frame_number,
+                "frame_number": fnum,
                 "frame": frame,
                 "tracked_objects": tracked_objects
             }
@@ -230,16 +243,8 @@ class VideoProcessor:
                 except Full:
                     time.sleep(0.005)
 
-        # Bu batch sonunda bölgelere göre statüleri güncelle
-        if hasattr(self.app, "assign_status_based_on_zones"):
-            self.app.assign_status_based_on_zones()
-
-
-
-
-
     # ------------------------------------------------------------------ #
-    # 4 – GUI tarafı (Qt ana thread)
+    # 4 – GUI (Qt ana thread)
     # ------------------------------------------------------------------ #
     def play_video(self):
         if self.app.cap is None or not self.app.playing:
@@ -247,38 +252,37 @@ class VideoProcessor:
         try:
             processed = self.processed_frames_queue.get_nowait()
         except Empty:
-            delay = int(1000 / max(1, self.app.fps))
-            self.timer.start(delay)
+            self.timer.start(int(1000 / max(1, self.app.fps)))
             return
 
         self.app.current_frame = processed["frame_number"]
         self.frame = processed["frame"]
         self.current_tracked_objects = processed["tracked_objects"]
 
-        display_frame = self.draw_boxes(self.frame.copy(), self.current_tracked_objects)
+        self.app.threat_assessment.perform_threat_assessment(self.app)
 
-        fps = self.fps_counter.get_fps()
-        self.app.video_info_label.setText(
-            f"Video Name: {self.app.video_path.split('/')[-1]} | "
-            f"Resolution: {self.app.display_width}x{self.app.display_height} | FPS: {fps}"
-        )
+        display_frame = self.draw_boxes(self.frame.copy(), self.current_tracked_objects)
 
         rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
-        bytes_per_line = ch * w
-        q_img = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(q_img)
-        self.app.video_label.setPixmap(pixmap)
+        q_img = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+        self.app.video_label.setPixmap(QPixmap.fromImage(q_img))
 
-        delay = int(1000 / max(1, self.app.fps))
-        self.timer.start(delay)
+        self.timer.start(int(1000 / max(1, self.app.fps)))
 
     # ------------------------------------------------------------------ #
-    # 5 – Box çizimi (değişmedi)
+    # 5 – Box çizimi
     # ------------------------------------------------------------------ #
     def draw_boxes(self, frame, tracked_objects):
         for obj in tracked_objects:
-            tid = str(obj["track_id"])
+            tid_num = obj["track_id"]
+
+            # ---<EKLENDİ 3>---  Güvenlik: çizimden önce de filtrele
+            if self.initialization_done and tid_num not in self.initial_object_ids:
+                continue
+            # ---<EKLENDİ 3>---
+
+            tid = str(tid_num)
             x1, y1, x2, y2 = map(int, obj["bbox"])
 
             status_info = self.app.object_statuses.get(
@@ -311,29 +315,24 @@ class VideoProcessor:
                 if ty < 10:
                     ty = y1 + 10 + i * line_h
                 cv2.putText(frame, txt, (tx, ty),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
-        # Bölge çizimleri (Friendly ve Enemy)
         for x1, y1, x2, y2 in self.app.friendly_zones:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-
         for x1, y1, x2, y2 in self.app.enemy_zones:
             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
 
         return frame
 
     # -------------------------------------------------------------- #
-    # 6 – GUI’den elle yeniden çizim (seçim / statü güncellemesi vb.)
+    # 6 – Elle yeniden çizim (GUI tetiklemeli)
     # -------------------------------------------------------------- #
     def refresh_video_display(self):
         if self.frame is None:
             return
 
         display_frame = self.draw_boxes(self.frame.copy(), self.current_tracked_objects)
-
         rgb = cv2.cvtColor(display_frame, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb.shape
-        bytes_per_line = ch * w
-        q_img = QImage(rgb.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        pixmap = QPixmap.fromImage(q_img)
-        self.app.video_label.setPixmap(pixmap)
+        q_img = QImage(rgb.data, w, h, ch * w, QImage.Format_RGB888)
+        self.app.video_label.setPixmap(QPixmap.fromImage(q_img))

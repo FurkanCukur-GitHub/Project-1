@@ -1,180 +1,195 @@
 # threat_assessment/manager.py
-"""
-Basitleştirilmiş tehdit hesaplayıcı
-
-• Dost nesnelerinin tehdidi = 0
-• Düşman nesnelerinin tehdidi = base × 2 × (1 + Δ/SCALE)
-• Unknown nesnelerin tehdidi  = base × (1 + Δ/SCALE)
-
-Δ  =  (ilk görüldüğü karedeki mesafe  −  güncel mesafe)
-SCALE = 50 px  ⇒  her 50 px yaklaşmaya +1 katsayı
-"""
-
 from collections import defaultdict
 import numpy as np
-from sklearn.cluster import DBSCAN
-
-from .config import THREAT_COEFF, GROUP_RADIUS_PX
-from .core   import ObjectState, TrackHistory, ObjectGroup
-from .rules import _nearest_distance
 
 
-SCALE = 50.0        # px başına dinamik artış
-EPS   = 1e-6
+from .config import THREAT_COEFF, PIXEL_TO_METER
+from .core   import ObjectState, TrackHistory
 
 class ThreatAssessment:
     def __init__(self):
-        self.base_coeff  = THREAT_COEFF
+        self.base_coeff   = THREAT_COEFF
         self.threat_coefficients = self.base_coeff
-        self.histories   = defaultdict(TrackHistory)
-        self.first_dist  = {}
+        self.histories    = defaultdict(TrackHistory)
+        self.first_dist   = {}
+        self.prev_threat  = defaultdict(float)
 
-    # ------------------------------------------------------------------
-    def update(self, tracked_objects, friendly_zones=None):
+    # --------------------------------------------------------------
+    def update(self, tracked_objects, *, friendly_zones=None, enemy_zones=None):
         states = [self._to_state(o) for o in tracked_objects]
 
-        # 1) Koordinat geçmişi güncelle
         for st in states:
             self.histories[st.track_id].add(st.center)
-
-        # 2) Dost bölgesi merkezleri
         zone_centers = [
-            np.array([(x1 + x2) * 0.5, (y1 + y2) * 0.5])
+            np.array([(x1+x2)*0.5, (y1+y2)*0.5]) * PIXEL_TO_METER
             for (x1, y1, x2, y2) in (friendly_zones or [])
         ]
 
-        # 3) Nesne skorlaması
+        # --------------- DÖNGÜ: Her nesne ---------------
         for st in states:
-            base = self.base_coeff.get(st.cls, self.base_coeff["Unknown"])
+            base    = self.base_coeff.get(st.cls, 1)
             history = self.histories[st.track_id]
 
-            # Dost nesne tehdit değeri sıfır
+            # ---------- FRIEND ----------
             if st.status == "friend":
                 st.threat = 0.0
+                self.prev_threat[st.track_id] = 0.0
                 continue
 
-            # Unknown nesne tehdit hesabı
+            # ==========================================================
+            # ---------- UNKNOWN  (dost + düşman bölgeleri) ------------
+            # ==========================================================
             if st.status == "unknown":
-                total_threat = 0.0
-                foe_groups = [s for s in states if s.status == "foe"]
+                dist_extra_sum = 0.0
+                vel_score_sum  = 0.0
 
-                # Düşmanlara yakınlık skoru
-                foe_centers = [f.center for f in foe_groups]
-                d_foe = _nearest_distance(st.center, foe_centers)
-                threat_foe = max(0.0, (200 - d_foe) / 200) * base
+                # Dost ve düşman bölge merkezleri
+                friend_centers = zone_centers
+                enemy_centers  = [
+                    np.array([(x1+x2)*0.5, (y1+y2)*0.5]) * PIXEL_TO_METER
+                    for (x1, y1, x2, y2) in (enemy_zones or [])
+                ]
+                all_centers = friend_centers + enemy_centers
 
-                # Dost bölgelere yakınlık skoru
-                threat_friend = sum([
-                    max(0.0, (200 - np.linalg.norm(st.center - c)) / 200) * base
-                    for c in zone_centers
-                ])
+                # Mesafeye göre katsayı
+                def factor_by_dist(d: float) -> float:
+                    if d > 100:   return 1.0
+                    elif d > 90:  return 1.3
+                    elif d > 80:  return 1.6
+                    elif d > 70:  return 1.9
+                    elif d > 60:  return 2.2
+                    elif d > 50:  return 2.5
+                    elif d > 40:  return 2.8
+                    elif d > 30:  return 3.1
+                    elif d > 20:  return 3.4
+                    elif d > 10:  return 3.7
+                    else:         return 4.0        # 0–10 m
 
-                total_threat = threat_foe + threat_friend
+                # Her merkez için katkı
+                for c in all_centers:
+                    d      = np.linalg.norm(st.center - c)
+                    factor = factor_by_dist(d)
 
-                # Min = base, Max = base * 2
-                st.threat = round(max(base, min(base * 2, total_threat)), 2)
-                continue
+                    if factor > 1.0:                          # ≤100 m
+                        dist_extra_sum += base * (factor - 1.0)
 
-            # Foe nesnesi için tehdit değerlendirmesi
-            if st.status == "foe":
-                total_dyn_score = 0.0
-                total_velocity_score = 0.0
-
-                for i, c in enumerate(zone_centers):
-                    d_curr = np.linalg.norm(st.center - c)
-
-                    # İlk karedeki mesafeyi kaydet
-                    if (st.track_id, i) not in self.first_dist:
-                        self.first_dist[(st.track_id, i)] = d_curr
-                    d_init = self.first_dist[(st.track_id, i)]
-
-                    # Δ mesafe
-                    delta = max(0.0, d_init - d_curr)
-                    dyn_score = delta / SCALE
-                    total_dyn_score += dyn_score
-
-                    # Yaklaşma yönü ve hız bileşeni
-                    v = history.velocity()
+                    # Hız bileşeni
+                    v     = history.velocity()
                     speed = np.linalg.norm(v)
-                    if speed < 1e-3:
-                        velocity_score = 0.0
-                    else:
+                    if speed >= 1e-3:
                         dir_vec = c - st.center
-                        dist = np.linalg.norm(dir_vec)
-                        if dist > 1e-3:
+                        dist    = np.linalg.norm(dir_vec)
+                        if dist >= 1e-3:
                             dir_vec /= dist
                             speed_towards = np.dot(v, dir_vec)
-                            velocity_score = max(0.0, speed_towards / 20)
-                        else:
-                            velocity_score = 0.0
+                            vel_score_sum += max(
+                                0.0,
+                                speed_towards / (10 * PIXEL_TO_METER)
+                            )
 
-                    total_velocity_score += velocity_score
+                st.threat = round(base + dist_extra_sum + vel_score_sum, 2)
 
-                # ❗ Başlangıç sabit: base * 2 (dost bölgesi sayısından bağımsız)
-                threat_total = (base * 2) + total_dyn_score + total_velocity_score
-                st.threat = round(threat_total, 2)
+            # ==========================================================
+            # --------------------  FOE  -------------------------------
+            # ==========================================================
+            elif st.status == "foe":
+                dist_score_sum = 0.0
+                vel_score_sum  = 0.0
+
+                if not zone_centers:                 # dost bölgesi tanımsız
+                    dist_score_sum = base * 2
+
+                for c in zone_centers:
+                    d = np.linalg.norm(st.center - c)
+
+                    # 5 m'lik dilimler
+                    if d > 100:      factor = 1.0
+                    elif d > 95:     factor = 1.2
+                    elif d > 90:     factor = 1.4
+                    elif d > 85:     factor = 1.6
+                    elif d > 80:     factor = 1.8
+                    elif d > 75:     factor = 2.0
+                    elif d > 70:     factor = 2.2
+                    elif d > 65:     factor = 2.4
+                    elif d > 60:     factor = 2.6
+                    elif d > 55:     factor = 2.8
+                    elif d > 50:     factor = 3.0
+                    elif d > 45:     factor = 3.2
+                    elif d > 40:     factor = 3.4
+                    elif d > 35:     factor = 3.6
+                    elif d > 30:     factor = 3.8
+                    elif d > 25:     factor = 4.0
+                    elif d > 20:     factor = 4.2
+                    elif d > 15:     factor = 4.4
+                    elif d > 10:     factor = 4.6
+                    elif d > 5:      factor = 4.8
+                    else:            factor = 5.0
+
+                    dist_score_sum += (base * 2) * factor
+
+                    # Hız bileşeni
+                    v     = history.velocity()
+                    speed = np.linalg.norm(v)
+                    if speed >= 1e-3:
+                        dir_vec = c - st.center
+                        dist    = np.linalg.norm(dir_vec)
+                        if dist >= 1e-3:
+                            dir_vec /= dist
+                            speed_towards = np.dot(v, dir_vec)
+                            vel_score_sum += max(
+                                0.0,
+                                speed_towards / (10 * PIXEL_TO_METER)
+                            )
+
+                if dist_score_sum == 0.0:
+                    dist_score_sum = base * 2
+
+                st.threat = round(dist_score_sum + vel_score_sum, 2)
+
+            # ==========================================================
+            # ------------ KARARLILIK (Histerezis) --------------------
+            # ==========================================================
+            THR_HYST = 1.0                 # ±1 puan içindeki salınımları bastır
+            prev = self.prev_threat[st.track_id]
+            new  = st.threat
+
+            if new > prev and (new - prev) < THR_HYST:
+                new = prev
+            elif new < prev and (prev - new) < THR_HYST:
+                new = prev
+
+            self.prev_threat[st.track_id] = new
+            st.threat = new
+
 
         return [vars(s) for s in states]
 
-
-
-
     # ------------------------------------------------------------------
     def perform_threat_assessment(self, app):
-        """
-        UI çağrısı:
-        • Nesne statülerini tabloya geri yazar
-        • Video durdurulmuş olsa bile çalışır
-        """
         tracked = app.video_processor.current_tracked_objects
-
-        # Statüleri (friend/foe/unknown) aktar
         for obj in tracked:
             tid = str(obj["track_id"])
             obj["status"] = app.object_statuses.get(tid, {}).get("status", "unknown")
 
-        scored = self.update(tracked, friendly_zones=app.friendly_zones)
+        scored = self.update(
+            tracked,
+            friendly_zones=app.friendly_zones,
+            enemy_zones   =app.enemy_zones
+        )
+
 
         for obj in scored:
             tid = str(obj["track_id"])
-            if tid not in app.object_statuses:
-                app.object_statuses[tid] = {
-                    "status": "unknown",
-                    "selected": False,
-                    "threat_level": 1.0,
-                }
+            app.object_statuses.setdefault(tid, {"status":"unknown","selected":False,"threat_level":1.0})
             app.object_statuses[tid]["threat_level"] = obj["threat"]
 
-    # ------------------------------------------------------------------
-    #  Yardımcılar
     # ------------------------------------------------------------------
     @staticmethod
     def _to_state(o: dict) -> ObjectState:
         return ObjectState(
-            track_id = o["track_id"],
-            cls      = o["cls"],
-            status   = o.get("status", "unknown"),
-            bbox     = tuple(o["bbox"]),
-            conf     = o.get("conf", 0.0),
+            track_id=o["track_id"],
+            cls=o["cls"],
+            status=o.get("status", "unknown"),
+            bbox=tuple(o["bbox"]),
+            conf=o.get("conf", 0.0),
         )
-
-    @staticmethod
-    def _cluster(states):
-        """Friend / foe grupları – dost merkezleri yoksa fallback."""
-        if not states:
-            return [], []
-        pts = np.stack([s.center for s in states])
-        labels = DBSCAN(eps=GROUP_RADIUS_PX, min_samples=1).fit_predict(pts)
-
-        groups = {}
-        for st, lab in zip(states, labels):
-            groups.setdefault((lab, st.status), []).append(st)
-
-        friend_g, foe_g = [], []
-        for (lab, status), members in groups.items():
-            g = ObjectGroup(group_id=lab, status=status, members=members)
-            if status == "friend":
-                friend_g.append(g)
-            elif status == "foe":
-                foe_g.append(g)
-        return friend_g, foe_g

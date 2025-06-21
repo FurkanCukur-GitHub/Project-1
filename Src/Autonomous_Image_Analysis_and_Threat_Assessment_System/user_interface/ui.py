@@ -1,19 +1,23 @@
 # user_interface/ui.py
 from PyQt5.QtWidgets import (
-    QWidget, QLabel, QPushButton, QFrame, QVBoxLayout, QHBoxLayout, QApplication, QTableWidget, QTableWidgetItem, QHeaderView
+    QWidget, QLabel, QPushButton, QFrame, QVBoxLayout, QHBoxLayout,
+    QApplication, QTableWidget, QTableWidgetItem, QHeaderView
 )
 from PyQt5.QtGui import QFont, QMouseEvent, QPainter, QPen, QBrush, QColor, QIcon
 from PyQt5.QtCore import Qt, pyqtSignal, QTimer, QSize
 
+from project_utils.config import SCALE
 from threat_assessment.manager import ThreatAssessment
 from user_interface.event_handlers import EventHandlers
 from process_operations.video_processor import VideoProcessor
 from object_detection.object_detector import ObjectDetector
 
+import math
+
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal(QMouseEvent)
-    region_selected = pyqtSignal(tuple)
+    region_selected = pyqtSignal(object)
 
     def __init__(self, parent_app, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -24,7 +28,9 @@ class ClickableLabel(QLabel):
         self.current_rect = None
 
     def mousePressEvent(self, event):
-        if self.parent_app.selecting_region or self.parent_app.selecting_friendly_zone or self.parent_app.selecting_enemy_zone:
+        if (self.parent_app.selecting_region or
+                self.parent_app.selecting_friendly_zone or
+                self.parent_app.selecting_enemy_zone):
             self.start_point = event.pos()
             self.drawing = True
             self.current_rect = None
@@ -45,7 +51,9 @@ class ClickableLabel(QLabel):
             self.update()
             x1, y1 = self.start_point.x(), self.start_point.y()
             x2, y2 = self.end_point.x(), self.end_point.y()
-            self.region_selected.emit((min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2)))
+            self.region_selected.emit(
+                (min(x1, x2), min(y1, y2), max(x1, x2), max(y1, y2))
+            )
             self.start_point = None
             self.end_point = None
             self.current_rect = None
@@ -59,20 +67,29 @@ class ClickableLabel(QLabel):
             p1, p2 = self.current_rect
             x1, y1 = p1.x(), p1.y()
             x2, y2 = p2.x(), p2.y()
-            painter.drawRect(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+            painter.drawRect(min(x1, x2), min(y1, y2),
+                             abs(x2 - x1), abs(y2 - y1))
 
 
 class Application(QWidget):
     def __init__(self):
         super().__init__()
 
+        # ───────── Ölçek faktörü ─────────
+        self.SCALE = SCALE
+        s = self.SCALE
+
         # Video çerçeve boyutları
-        self.video_frame_width = 1280
-        self.video_frame_height = 704
+        self.video_frame_width  = (int(1600 * s) // 32) * 32
+        self.video_frame_height = (int(896  * s) // 32) * 32
 
         # Object detection and processing
         self.object_detector = ObjectDetector()
-        self.video_processor = self.video_processor = VideoProcessor(self, display_width=self.video_frame_width, display_height=self.video_frame_height)
+        self.video_processor = VideoProcessor(
+            self,
+            display_width=self.video_frame_width,
+            display_height=self.video_frame_height
+        )
         self.threat_assessment = ThreatAssessment()
         self.event_handlers = EventHandlers(self)
 
@@ -87,7 +104,7 @@ class Application(QWidget):
         self.selecting_object = False
         self.selecting_region = False
 
-        # dost-düşman bölgeler
+        # Dost-düşman bölgeler
         self.friendly_zones = []
         self.enemy_zones = []
         self.selecting_friendly_zone = False
@@ -96,49 +113,61 @@ class Application(QWidget):
         # UI setup
         self.setWindowTitle("System User Interface")
         self.setStyleSheet("background-color: #1F2224;")
-        self.default_font = QFont("Helvetica", 12)
-        self.window_width = 2060
-        self.window_height = 1200
+        self.default_font = QFont("Helvetica", max(int(12 * s), 8))
+
+        self.window_width  = int(2260 * s)
+        self.window_height = int(1200 * s)
+
         self.setFixedSize(self.window_width, self.window_height)
 
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(10)
 
-        # =============== Sistem Adı Bölümü ===============
+        # Sistem Adı
         self.system_name_outer = QFrame()
-        self.system_name_outer.setStyleSheet("background-color: #2A2F33; border-radius: 10px;")
-        self.system_name_outer.setFixedHeight(70)
+        self.system_name_outer.setStyleSheet(
+            "background-color: #2A2F33; border-radius: 10px;"
+        )
+        self.system_name_outer.setFixedHeight(int(70 * s))
         system_name_outer_layout = QVBoxLayout()
         system_name_outer_layout.setContentsMargins(10, 10, 10, 10)
         system_name_outer_layout.setSpacing(0)
         self.system_name_outer.setLayout(system_name_outer_layout)
 
         self.system_name_inner = QFrame()
-        self.system_name_inner.setStyleSheet("background-color: #393E40; border-radius: 10px;")
-        self.system_name_inner.setFixedHeight(50)
+        self.system_name_inner.setStyleSheet(
+            "background-color: #393E40; border-radius: 10px;"
+        )
+        self.system_name_inner.setFixedHeight(int(50 * s))
         system_name_inner_layout = QHBoxLayout()
         system_name_inner_layout.setContentsMargins(10, 10, 10, 10)
         system_name_inner_layout.setAlignment(Qt.AlignCenter)
         self.system_name_inner.setLayout(system_name_inner_layout)
 
-        self.system_name_label = QLabel("Autonomous Image Analysis and Threat Assessment System")
+        self.system_name_label = QLabel(
+            "Autonomous Image Analysis and Threat Assessment System"
+        )
         self.system_name_label.setStyleSheet("color: white;")
-        self.system_name_label.setFont(QFont("Helvetica", 16, QFont.Bold))
+        self.system_name_label.setFont(
+            QFont("Helvetica", max(int(16 * s), 10), QFont.Bold)
+        )
         system_name_inner_layout.addWidget(self.system_name_label)
         system_name_outer_layout.addWidget(self.system_name_inner)
         main_layout.addWidget(self.system_name_outer)
 
-        # İçerik alanı
+        # İçerik
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(50)
+        content_layout.setSpacing(int(50 * s))
         main_layout.addLayout(content_layout)
 
         # Sol Panel
         self.left_panel1 = QFrame()
-        self.left_panel1.setStyleSheet("background-color: #2A2F33; border-radius: 10px;")
-        self.left_panel1.setFixedWidth(300)
+        self.left_panel1.setStyleSheet(
+            "background-color: #2A2F33; border-radius: 10px;"
+        )
+        self.left_panel1.setFixedWidth(int(500 * s))
         left_panel_layout = QVBoxLayout()
         left_panel_layout.setContentsMargins(10, 10, 10, 10)
         left_panel_layout.setSpacing(10)
@@ -147,69 +176,56 @@ class Application(QWidget):
         self.object_table = QTableWidget()
         self.object_table.setColumnCount(4)
         self.object_table.setHorizontalHeaderLabels(["ID", "Type", "Status", "Threat"])
-        self.object_table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        header = self.object_table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # ID
+        header.setSectionResizeMode(1, QHeaderView.Interactive)       # Type
+        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Status
+        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Threat
+
+        # Type sütunu için minimum genişlik
+        header.setMinimumSectionSize(95)
+        self.object_table.setColumnWidth(1, 195)  # Type sütunu genişliği
+
+
         self.object_table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.object_table.setSelectionBehavior(QTableWidget.SelectRows)
         self.object_table.setSelectionMode(QTableWidget.SingleSelection)
         self.object_table.verticalHeader().setVisible(False)
-
-        # Tablo stilinde hover rengi ve varsayılan gri
         self.object_table.setStyleSheet("""
-            QTableWidget {
-                background-color: #393E40;
-                color: white;
-                border: none;
-            }
-            QHeaderView::section {
-                background-color: #2B2E30;
-                color: white;
-                font-weight: bold;
-            }
-            QTableWidget::item:selected {
-                background-color: #FFA500;
-                color: white;
-            }
-            QTableWidget::item:hover {
-                background-color: #4D4D4D;
-                color: white;
-            }
+            QTableWidget { background-color: #393E40; color: white; border: none; }
+            QHeaderView::section { background-color: #2B2E30; color: white; font-weight: bold; }
+            QTableWidget::item:selected { background-color: #FFA500; color: white; }
+            QTableWidget::item:hover { background-color: #4D4D4D; color: white; }
         """)
-
         self.object_table.cellClicked.connect(self.on_object_table_click)
         left_panel_layout.addWidget(self.object_table)
         content_layout.addWidget(self.left_panel1)
 
         # Sağ Panel
         self.right_panel_outer = QFrame()
-        self.right_panel_outer.setStyleSheet("background-color: #2A2F33; border-radius: 10px;")
+        self.right_panel_outer.setStyleSheet(
+            "background-color: #2A2F33; border-radius: 10px;"
+        )
         right_panel_outer_layout = QVBoxLayout()
         right_panel_outer_layout.setContentsMargins(10, 10, 10, 10)
         right_panel_outer_layout.setSpacing(10)
         self.right_panel_outer.setLayout(right_panel_outer_layout)
 
         self.right_panel_inner = QFrame()
-        self.right_panel_inner.setStyleSheet("background-color: #393E40; border-radius: 10px;")
+        self.right_panel_inner.setStyleSheet(
+            "background-color: #393E40; border-radius: 10px;"
+        )
         right_panel_inner_layout = QVBoxLayout()
         right_panel_inner_layout.setContentsMargins(10, 10, 10, 10)
         right_panel_inner_layout.setSpacing(10)
         self.right_panel_inner.setLayout(right_panel_inner_layout)
 
-        # Video Info
-        self.video_info_frame = QFrame()
-        self.video_info_frame.setStyleSheet("background-color: #393E40; border-radius: 10px;")
-        video_info_layout = QVBoxLayout()
-        video_info_layout.setContentsMargins(5, 5, 5, 5)
-        self.video_info_frame.setLayout(video_info_layout)
-        self.video_info_label = QLabel("No video selected.")
-        self.video_info_label.setStyleSheet("color: white;")
-        self.video_info_label.setFont(self.default_font)
-        video_info_layout.addWidget(self.video_info_label)
-        right_panel_inner_layout.addWidget(self.video_info_frame)
-
         # Video Görüntüleme
         self.video_frame = QFrame()
         self.video_frame.setStyleSheet("background-color: black; border-radius: 0px;")
-        self.video_frame.setFixedSize(self.video_frame_width, self.video_frame_height)
+        self.video_frame.setFixedSize(
+            self.video_frame_width, self.video_frame_height
+        )
         video_frame_layout = QVBoxLayout()
         video_frame_layout.setAlignment(Qt.AlignCenter)
         video_frame_layout.setContentsMargins(0, 0, 0, 0)
@@ -218,24 +234,20 @@ class Application(QWidget):
         self.video_label = ClickableLabel(self)
         self.video_label.setStyleSheet("background-color: black;")
         self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setFixedSize(self.video_frame_width, self.video_frame_height)
+        self.video_label.setFixedSize(
+            self.video_frame_width, self.video_frame_height
+        )
         self.video_label.clicked.connect(self.on_video_click)
         self.video_label.region_selected.connect(self.on_region_selected)
         video_frame_layout.addWidget(self.video_label)
         right_panel_inner_layout.addWidget(self.video_frame, alignment=Qt.AlignCenter)
 
-        # Ekstra boşluk
+        # Spacer
         spacer = QFrame()
-        spacer.setFixedHeight(40)
-        spacer.setStyleSheet("background: transparent;")
+        spacer.setFixedHeight(int(40 * s))
         right_panel_inner_layout.addWidget(spacer)
 
-        # Action Butonları
-        self.action_frame = QFrame()
-        action_layout = QHBoxLayout()
-        action_layout.setSpacing(10)
-        self.action_frame.setLayout(action_layout)
-
+        # Butonlar (Action + Control)
         action_icons = [
             ("others\\Select_Object.png", self.event_handlers.select_object),
             ("others\\Select_Region.png", self.event_handlers.select_region),
@@ -243,51 +255,40 @@ class Application(QWidget):
             ("others\\Reset_Status.png", self.event_handlers.reset_status),
             ("others\\Mark_Friend.png", self.event_handlers.mark_friend)
         ]
-        for icon_path, command in action_icons:
-            btn = QPushButton()
-            btn.clicked.connect(command)
-            btn.setFixedSize(100, 100)
-            btn.setFlat(True)
-            btn.setStyleSheet("border: none; background: transparent;")
-            btn.setIcon(QIcon(icon_path))
-            btn.setIconSize(QSize(100, 100))
-            btn.setCursor(Qt.PointingHandCursor)
-            action_layout.addWidget(btn)
-        right_panel_inner_layout.addWidget(self.action_frame)
-
-        # Control Butonları
-        self.control_frame = QFrame()
-        control_layout = QHBoxLayout()
-        control_layout.setSpacing(10)
-        self.control_frame.setLayout(control_layout)
-
         control_icons = [
             ("others\\Friendly_Zone.png", self.event_handlers.select_friendly_zone),
-            ("others\\Enemy_Zone.png",    self.event_handlers.select_enemy_zone),
-            ("others\\Clear_Zones.png",   self.event_handlers.clear_zones),
-            ("others\\Select_Video.png",  self.event_handlers.open_video),
-            ("others\\Play.png",          self.event_handlers.resume_video),
-            ("others\\Pause.png",         self.event_handlers.pause_video),
-            ("others\\Exit.png",          self.event_handlers.quit_app)
+            ("others\\Enemy_Zone.png", self.event_handlers.select_enemy_zone),
+            ("others\\Clear_Zones.png", self.event_handlers.clear_zones),
+            ("others\\Select_Theater.png", self.event_handlers.open_video),
+            ("others\\Play.png", self.event_handlers.resume_video),
+            ("others\\Pause.png", self.event_handlers.pause_video),
+            ("others\\Exit.png", self.event_handlers.quit_app)
+            # , ("others\\Calculate_Distance.png", self.event_handlers.calculate_distance_between_selected)
         ]
-        for icon_path, command in control_icons:
+        self.buttons_frame = QFrame()
+        buttons_layout = QHBoxLayout()
+        buttons_layout.setSpacing(10)
+        self.buttons_frame.setLayout(buttons_layout)
+
+        btn_size = int(100 * s)
+        for icon_path, command in action_icons + control_icons:
             btn = QPushButton()
             btn.clicked.connect(command)
-            btn.setFixedSize(100, 100)
+            btn.setFixedSize(btn_size, btn_size)
             btn.setFlat(True)
             btn.setStyleSheet("border: none; background: transparent;")
             btn.setIcon(QIcon(icon_path))
-            btn.setIconSize(QSize(100, 100))
+            btn.setIconSize(QSize(btn_size, btn_size))
             btn.setCursor(Qt.PointingHandCursor)
-            control_layout.addWidget(btn)
-        right_panel_inner_layout.addWidget(self.control_frame)
+            buttons_layout.addWidget(btn)
 
+        right_panel_inner_layout.addWidget(self.buttons_frame)
         right_panel_outer_layout.addWidget(self.right_panel_inner)
         content_layout.addWidget(self.right_panel_outer)
 
         main_layout.addLayout(content_layout)
 
-        # Nesne tablosunun periyodik güncellemesi
+        # Periyodik tablo güncellemesi
         self.update_objects_timer = QTimer()
         self.update_objects_timer.timeout.connect(self.update_object_table)
         self.update_objects_timer.start(500)
@@ -437,10 +438,7 @@ class Application(QWidget):
         for row, obj in enumerate(tracked_objects):
             track_id = str(obj['track_id'])
             cls      = obj['cls'].strip()          # ‼️ boşluk/küçük farkları at
-            base_thr = self.threat_assessment.threat_coefficients.get(
-                cls,
-                self.threat_assessment.threat_coefficients["Unknown"]
-            )
+            base_thr = self.threat_assessment.threat_coefficients.get(cls, 1)
 
             # object_statuses’e ekle / güncelle (ilk girişse)
             if track_id not in self.object_statuses:
@@ -535,7 +533,6 @@ class Application(QWidget):
         self.playing = False
         self.cap = None
         self.video_path = ""
-        self.video_info_label.setText("No video selected.")
         self.video_label.clear()
         self.object_table.setRowCount(0)
 
@@ -552,8 +549,7 @@ class Application(QWidget):
                 if tid not in self.object_statuses:
                     # Sınıfa göre taban katsayıyı al (bulunamazsa Unknown)
                     base_threat = self.threat_assessment.threat_coefficients.get(
-                        obj['cls'].strip(),
-                        self.threat_assessment.threat_coefficients["Unknown"]
+                        obj['cls'].strip(), 1
                     )
                     self.object_statuses[tid] = {
                         'status'      : "unknown",
@@ -587,5 +583,3 @@ class Application(QWidget):
             # Ekranı yenile
             self.update_object_table()
             self.video_processor.refresh_video_display()
-
-  

@@ -13,7 +13,7 @@ class ObjectDetector:
         self.vehicle_names = self.vehicle_detector.names
 
     # --------------------------------------------------------------------- #
-    def detect_objects(self, frames, threshold: float = 0.3):
+    def detect_objects(self, frames, threshold: float = 0.5):
         batch_out = []
 
         with torch.inference_mode():

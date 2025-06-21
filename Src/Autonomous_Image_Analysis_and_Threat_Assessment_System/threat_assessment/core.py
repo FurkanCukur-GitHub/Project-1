@@ -1,22 +1,26 @@
 # threat_assessment/core.py
+
 from dataclasses import dataclass, field
 from collections import deque
 import numpy as np
-from .config import HISTORY_LEN
+from .config import HISTORY_LEN, PIXEL_TO_METER
 
 @dataclass
 class ObjectState:
     track_id: int
     cls: str
     status: str   # 'friend'|'foe'|'unknown'
-    bbox: tuple   # (x1,y1,x2,y2)
+    bbox: tuple   # (x1,y1,x2,y2) – piksel cinsinden
     conf: float
     threat: float = 0.0
 
     @property
     def center(self):
+        """Merkezi METRE cinsinden döndürür."""
         x1, y1, x2, y2 = self.bbox
-        return np.array([(x1+x2)*0.5, (y1+y2)*0.5])
+        cx = (x1 + x2) * 0.5 * PIXEL_TO_METER
+        cy = (y1 + y2) * 0.5 * PIXEL_TO_METER
+        return np.array([cx, cy])
 
 @dataclass
 class TrackHistory:
